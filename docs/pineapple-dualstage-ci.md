@@ -22,3 +22,6 @@ Notes:
 - The workflow intentionally produces a bare `boot.img` for unlocked test devices.
 - No AVB or `vbmeta` signing is applied.
 - The boot image packer currently emits Android boot header v4 images only.
+- Manual trigger paths:
+  - GitHub UI: `workflow_dispatch`, with optional `target_ref`.
+  - API: `repository_dispatch` event type `build-pineapple-dualstage`, for example with payload fields `ref` and `boot_cmdline`.

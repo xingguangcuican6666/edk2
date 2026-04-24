@@ -2,8 +2,6 @@ name: Build Pineapple Dual-Stage UEFI
 
 on:
   push:
-    branches:
-      - uefi.lnx.4.0.r14-rel
     paths:
       - ".github/workflows/build-pineapple-dualstage.yml"
       - "QcomModulePkg/**"
@@ -13,6 +11,10 @@ on:
       - "scripts/pack_bootimg.py"
   workflow_dispatch:
     inputs:
+      target_ref:
+        description: "Git ref to build"
+        required: false
+        default: "uefi.lnx.4.0.r14-rel"
       boot_header_version:
         description: "Android boot header version"
         required: false
@@ -21,6 +23,9 @@ on:
         description: "Boot image cmdline override"
         required: false
         default: ""
+  repository_dispatch:
+    types:
+      - build-pineapple-dualstage
 
 jobs:
   build:
@@ -29,6 +34,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.ref || github.event.inputs.target_ref || github.ref }}
 
       - name: Install build dependencies
         run: |
@@ -45,8 +52,9 @@ jobs:
 
       - name: Build dual-stage pineapple artifacts
         env:
+          TARGET_REF: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.ref || github.event.inputs.target_ref || github.ref }}
           BOOT_HEADER_VERSION: ${{ github.event.inputs.boot_header_version || '4' }}
-          BOOT_CMDLINE: ${{ github.event.inputs.boot_cmdline || '' }}
+          BOOT_CMDLINE: ${{ github.event.inputs.boot_cmdline || github.event.client_payload.boot_cmdline || '' }}
         run: |
           bash scripts/build_pineapple_ci.sh
 
