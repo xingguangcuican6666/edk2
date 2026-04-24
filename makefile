@@ -4,27 +4,57 @@ export BUILD_NATIVE_AARCH64 := ${BUILD_NATIVE_AARCH64}
 export SIGN_ABL_IMAGE := ${SIGN_ABL_IMAGE}
 # Standalone boot configuration for native building
 ifeq ($(BUILD_NATIVE_AARCH64),true)
+ifndef VERIFIED_BOOT
 	export VERIFIED_BOOT := 0
+endif
+ifndef VERIFIED_BOOT_LE
 	export VERIFIED_BOOT_LE := false
+endif
+ifndef ENABLE_LE_VARIANT
 	export ENABLE_LE_VARIANT := false
+endif
+ifndef VERITY_LE
 	export VERITY_LE := false
+endif
+ifndef DEFAULT_UNLOCK
 	export DEFAULT_UNLOCK := true
+endif
+ifndef BUILD_SYSTEM_ROOT_IMAGE
 	export BUILD_SYSTEM_ROOT_IMAGE := false
+endif
+ifndef AB_RETRYCOUNT_DISABLE
 	export AB_RETRYCOUNT_DISABLE := false
+endif
+ifndef DISABLE_PARALLEL_DOWNLOAD_FLASH
 	export DISABLE_PARALLEL_DOWNLOAD_FLASH := false
+endif
+ifndef DYNAMIC_PARTITION_SUPPORT
 	export DYNAMIC_PARTITION_SUPPORT := 1
+endif
+ifndef USER_BUILD_VARIANT
 	export USER_BUILD_VARIANT := false
-	export BOOTLOADER_OUT := $(pwd)/obj/ABL_OBJ
+endif
+ifndef BOOTLOADER_OUT
+	export BOOTLOADER_OUT := $(CURDIR)/obj/ABL_OBJ
+endif
+ifndef CLANG_BIN
 	export CLANG_BIN := /usr/bin/
-	export CLANG_PREFIX := /usr/bin/aarch64-redhat-linux- 
+endif
+ifndef CLANG_PREFIX
+	export CLANG_PREFIX := /usr/bin/aarch64-linux-gnu-
+endif
+ifndef TARGET_ARCHITECTURE
 	export TARGET_ARCHITECTURE := arm64
+endif
+ifndef DISABLE_KERNEL_PROTOCOL
 	export DISABLE_KERNEL_PROTOCOL := false
 endif
+endif
 
-ifndef $(BOOTLOADER_OUT)
+ifndef BOOTLOADER_OUT
 	BOOTLOADER_OUT := $(shell pwd)
 endif
-export $(BOOTLOADER_OUT)
+export BOOTLOADER_OUT
 
 BUILDDIR=$(shell pwd)
 export WRAPPER := $(PREBUILT_PYTHON_PATH) $(BUILDDIR)/clang-wrapper.py
@@ -39,7 +69,7 @@ else
 	export EXTRA_GCC_ARG :=
 endif
 export CLANG35_GCC_TOOLCHAIN := $(CLANG35_GCC_TOOLCHAIN)
-export $(BOARD_BOOTLOADER_PRODUCT_NAME)
+export BOARD_BOOTLOADER_PRODUCT_NAME
 
 ifeq ($(TARGET_ARCHITECTURE),arm)
 export ARCHITECTURE := ARM
@@ -60,8 +90,10 @@ EDK_TOOLS := $(BUILDDIR)/BaseTools
 EDK_TOOLS_BIN := $(EDK_TOOLS)/Source/C/bin
 ABL_FV_IMG := $(BUILD_ROOT)/FV/abl.fv
 ABL_FV_ELF := $(BOOTLOADER_OUT)/../../unsigned_abl.elf
+LINUX_LOADER_EFI := $(BOOTLOADER_OUT)/../../LinuxLoader.efi
+DUAL_STAGE_LOADER_EFI := $(BOOTLOADER_OUT)/../../DualStageLoader.efi
 ifeq ($(AUTO_VIRT_ABL), 1)
-  ABL_FV_EFI := $(BOOTLOADER_OUT)/../../LinuxLoader.efi
+  ABL_FV_EFI := $(LINUX_LOADER_EFI)
 endif
 SHELL:=/bin/bash
 
@@ -391,6 +423,8 @@ ABL_FV_IMG: $(EDK_TOOLS_PATH_MARK_FILE)
 	-j build_modulepkg.log $*
 
 	cp $(BUILD_ROOT)/FV/FVMAIN_COMPACT.Fv $(ABL_FV_IMG)
+	cp $(BUILD_ROOT)/$(ARCHITECTURE)/QcomModulePkg/Application/LinuxLoader/LinuxLoader/$(TARGET)/LinuxLoader.efi $(LINUX_LOADER_EFI)
+	cp $(BUILD_ROOT)/$(ARCHITECTURE)/QcomModulePkg/Application/DualStageLoader/DualStageLoader/$(TARGET)/DualStageLoader.efi $(DUAL_STAGE_LOADER_EFI)
 ifeq ($(AUTO_VIRT_ABL), 1)
 	cp $(BUILD_ROOT)/$(ARCHITECTURE)/QcomModulePkg/Application/LinuxLoader/LinuxLoader/$(TARGET)/LinuxLoader.efi $(ABL_FV_EFI)
 endif

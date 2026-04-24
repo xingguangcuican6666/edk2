@@ -115,6 +115,7 @@ READ_LOCK_STATUS   = TRUE
 FvNameGuid         = 046fae99-cf2e-49ed-a6a8-a1488b7e80d3
 
 INF QcomModulePkg/Application/LinuxLoader/LinuxLoader.inf
+INF QcomModulePkg/Application/DualStageLoader/DualStageLoader.inf
 
 [FV.FVMAIN_COMPACT]
 FvAlignment        = 8

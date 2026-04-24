@@ -87,6 +87,13 @@
 #define MAX_APP_STR_LEN 64
 #define MAX_NUM_FS 10
 #define DEFAULT_STACK_CHK_GUARD 0xc0c0c0c0
+#define DUAL_STAGE_LOADER_FILE_GUID                                         \
+  {                                                                         \
+    0xa1168d25, 0x1f58, 0x4d2b,                                             \
+    {                                                                       \
+      0xae, 0x2e, 0xf2, 0xf1, 0x93, 0xb8, 0x89, 0x7c                        \
+    }                                                                       \
+  }
 
 #if HIBERNATION_SUPPORT_NO_AES
 VOID BootIntoHibernationImage (BootInfo *Info,
@@ -100,6 +107,7 @@ STATIC BOOLEAN BootIntoRecovery = FALSE;
 UINT64 FlashlessBootImageAddr = 0;
 STATIC DeviceInfo DevInfo;
 STATIC UINT32 BootDeviceType = EFI_MAX_FLASH_TYPE;
+STATIC CONST EFI_GUID mDualStageLoaderFileGuid = DUAL_STAGE_LOADER_FILE_GUID;
 
 // This function is used to Deactivate MDTP by entering recovery UI
 STATIC EFI_STATUS MdtpDisable (VOID)
@@ -235,6 +243,85 @@ UINT32 GetBootDeviceType ()
   }
 
   return BootDeviceType;
+}
+
+STATIC EFI_STATUS
+LaunchEmbeddedSecondStage (IN EFI_HANDLE ParentImageHandle)
+{
+  typedef struct {
+    MEDIA_FW_VOL_FILEPATH_DEVICE_PATH FvFile;
+    EFI_DEVICE_PATH_PROTOCOL          End;
+  } FV_APP_DEVICE_PATH;
+
+  EFI_STATUS                 Status;
+  EFI_LOADED_IMAGE_PROTOCOL  *LoadedImage;
+  EFI_DEVICE_PATH_PROTOCOL   *ParentDevicePath;
+  EFI_DEVICE_PATH_PROTOCOL   *SecondStagePath;
+  EFI_HANDLE                 SecondStageHandle;
+  CHAR16                     *ExitData;
+  UINTN                      ExitDataSize;
+  FV_APP_DEVICE_PATH         FvPath;
+
+  LoadedImage = NULL;
+  SecondStagePath = NULL;
+  SecondStageHandle = NULL;
+  ExitData = NULL;
+  ExitDataSize = 0;
+
+  Status = gBS->HandleProtocol (ParentImageHandle,
+                  &gEfiLoadedImageProtocolGuid,
+                  (VOID **)&LoadedImage);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR,
+            "LaunchEmbeddedSecondStage: failed to get loaded image: %r\n",
+            Status));
+    return Status;
+  }
+
+  if (LoadedImage->DeviceHandle == NULL) {
+    DEBUG ((EFI_D_ERROR,
+            "LaunchEmbeddedSecondStage: missing parent device handle\n"));
+    return EFI_NOT_FOUND;
+  }
+
+  ParentDevicePath = DevicePathFromHandle (LoadedImage->DeviceHandle);
+  if (ParentDevicePath == NULL) {
+    DEBUG ((EFI_D_ERROR,
+            "LaunchEmbeddedSecondStage: missing parent device path\n"));
+    return EFI_NOT_FOUND;
+  }
+
+  EfiInitializeFwVolDevicepathNode (&FvPath.FvFile, &mDualStageLoaderFileGuid);
+  SetDevicePathEndNode (&FvPath.End);
+
+  SecondStagePath = AppendDevicePathNode (
+                      ParentDevicePath,
+                      (EFI_DEVICE_PATH_PROTOCOL *)&FvPath.FvFile);
+  if (SecondStagePath == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  Status = gBS->LoadImage (FALSE, ParentImageHandle, SecondStagePath,
+                  NULL, 0, &SecondStageHandle);
+  FreePool (SecondStagePath);
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR,
+            "LaunchEmbeddedSecondStage: failed to load stage2 image: %r\n",
+            Status));
+    return Status;
+  }
+
+  DEBUG ((EFI_D_INFO, "Launching embedded second-stage EFI payload\n"));
+  Status = gBS->StartImage (SecondStageHandle, &ExitDataSize, &ExitData);
+  if (ExitData != NULL) {
+    DEBUG ((EFI_D_ERROR,
+            "Embedded second-stage returned: %s\n",
+            ExitData));
+    FreePool (ExitData);
+  }
+
+  return Status;
 }
 
 /**
@@ -435,6 +522,18 @@ flashless_boot:
       goto fastboot;
   }
   else {
+    if (!BootIntoRecovery && !FlashlessBoot) {
+      Status = LaunchEmbeddedSecondStage (ImageHandle);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((EFI_D_ERROR,
+                "Embedded second-stage failed, falling back: %r\n",
+                Status));
+      } else {
+        DEBUG ((EFI_D_INFO,
+                "Embedded second-stage returned control, falling back\n"));
+      }
+    }
+
     BootInfo Info = {0};
     Info.MultiSlotBoot = MultiSlotBoot;
     Info.BootIntoRecovery = BootIntoRecovery;
