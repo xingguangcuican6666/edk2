@@ -32,6 +32,33 @@ STATIC INT8   mPrintLimitsSet         = 0;
 
 STATIC
 VOID
+AppendMessageText (
+  CHAR8        *Destination,
+  UINTN        DestinationSize,
+  CONST CHAR8  *Source
+  )
+{
+  UINTN DestinationLength;
+
+  if ((Destination == NULL) || (Source == NULL) || (DestinationSize == 0)) {
+    return;
+  }
+
+  DestinationLength = strlen (Destination);
+  if (DestinationLength >= DestinationSize - 1) {
+    return;
+  }
+
+  snprintf (
+    Destination + DestinationLength,
+    DestinationSize - DestinationLength,
+    "%s",
+    Source
+    );
+}
+
+STATIC
+VOID
 PrintLimitExceeded (
   VOID
   );
@@ -457,10 +484,10 @@ Notes:
     }
     if (Cptr != NULL) {
       strcpy (Line, ": ");
-      strncat (Line, Cptr, MAX_LINE_LEN - strlen (Line) - 1);
+      AppendMessageText (Line, sizeof (Line), Cptr);
       if (LineNumber != 0) {
         sprintf (Line2, "(%u)", (unsigned) LineNumber);
-        strncat (Line, Line2, MAX_LINE_LEN - strlen (Line) - 1);
+        AppendMessageText (Line, sizeof (Line), Line2);
       }
     }
   } else {
@@ -475,7 +502,7 @@ Notes:
       Line[MAX_LINE_LEN - 1] = 0;
       if (LineNumber != 0) {
         sprintf (Line2, "(%u)", (unsigned) LineNumber);
-        strncat (Line, Line2, MAX_LINE_LEN - strlen (Line) - 1);
+        AppendMessageText (Line, sizeof (Line), Line2);
       }
     } else {
       if (mUtilityName[0] != '\0') {
@@ -498,11 +525,11 @@ Notes:
   // Have to print an error code or Visual Studio won't find the
   // message for you. It has to be decimal digits too.
   //
-  strncat (Line, ": ", MAX_LINE_LEN - strlen (Line) - 1);
-  strncat (Line, Type, MAX_LINE_LEN - strlen (Line) - 1);
+  AppendMessageText (Line, sizeof (Line), ": ");
+  AppendMessageText (Line, sizeof (Line), Type);
   if (MessageCode != 0) {
     sprintf (Line2, " %04u", (unsigned) MessageCode);
-    strncat (Line, Line2, MAX_LINE_LEN - strlen (Line) - 1);
+    AppendMessageText (Line, sizeof (Line), Line2);
   }
   fprintf (stdout, "%s", Line);
   //
